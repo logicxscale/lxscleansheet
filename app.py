@@ -409,23 +409,7 @@ else:
     elif menu == "8. Before/After Comparison":
         st.subheader("⚖️ Before vs After Cleaning Comparison")
         
-        cleaned_comp_df = original_df.copy()
-        cleaned_comp_df = fill_empty_cells(cleaned_comp_df)
-        e_cols = detect_empty_columns(cleaned_comp_df)
-        if e_cols:
-            cleaned_comp_df = drop_empty_columns(cleaned_comp_df, e_cols)
-        cleaned_comp_df = remove_duplicates(cleaned_comp_df)
-        cleaned_comp_df = trim_whitespace(cleaned_comp_df)
-        d_cols = detect_date_columns(cleaned_comp_df)
-        if d_cols:
-            cleaned_comp_df = normalize_dates(cleaned_comp_df, d_cols)
-        c_cols = detect_currency_columns(cleaned_comp_df)
-        if c_cols:
-            cleaned_comp_df = normalize_currency(cleaned_comp_df, c_cols)
-        anoms = detect_anomalies(cleaned_comp_df)
-        if anoms:
-            for col, info in anoms.items():
-                cleaned_comp_df = cap_anomalies(cleaned_comp_df, col, info['lower_bound'], info['upper_bound'])
+        cleaned_comp_df = df.copy()
 
         orig_score = calculate_confidence_score(original_df)
         clean_score = calculate_confidence_score(cleaned_comp_df)
@@ -441,13 +425,6 @@ else:
             st.write(f"Shape: {cleaned_comp_df.shape}")
             st.metric("Cleaned Confidence Score", f"{clean_score} / 100", delta=f"+{clean_score - orig_score} vs Original")
             st.dataframe(cleaned_comp_df.head(10), use_container_width=True)
-
-        st.markdown("---")
-        if st.button("🚀 Apply Cleaned Comparison as Current Dataset"):
-            st.session_state.df = cleaned_comp_df.copy()
-            st.session_state.history_tracker.log("Before/After Apply", "Applied fully cleaned dataset from comparison view")
-            st.success("Cleaned dataset successfully applied as current working dataset!")
-            st.rerun()
 
     elif menu == "9. Cleaning History & Audit Log":
         st.subheader("📜 Cleaning History & Audit Log")
