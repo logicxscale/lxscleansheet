@@ -6,18 +6,26 @@ def similar(a, b):
         return 0.0
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
-def detect_typos_fuzzy(df: pd.DataFrame, threshold=0.85):
+def detect_typos_fuzzy(df: pd.DataFrame, threshold=0.8):
     typo_suggestions = {}
     for col in df.select_dtypes(include=['object', 'string']):
-        unique_vals = df[col].dropna().unique()
-        if 1 < len(unique_vals) < max(50, len(df) * 0.2):
+        value_counts = df[col].value_counts()
+        unique_vals = value_counts.index.tolist()
+        if 1 < len(unique_vals) < max(100, len(df) * 0.3):
+            seen = set()
+            pairs = []
             for i in range(len(unique_vals)):
                 for j in range(i+1, len(unique_vals)):
-                    v1, v2 = str(unique_vals[i]), str(unique_vals[j])
-                    if 0.7 < similar(v1, v2) < 1.0:
-                        if col not in typo_suggestions:
-                            typo_suggestions[col] = []
-                        typo_suggestions[col].append((v1, v2))
+                    v1 = str(unique_vals[i])
+                    v2 = str(unique_vals[j])
+                    sim = similar(v1, v2)
+                    if threshold <= sim < 1.0:
+                        pair_key = tuple(sorted([v1, v2]))
+                        if pair_key not in seen:
+                            seen.add(pair_key)
+                            pairs.append((v1, v2))
+            if pairs:
+                typo_suggestions[col] = pairs
     return typo_suggestions
 
 def fix_typo(df: pd.DataFrame, column: str, target: str, replacement: str) -> pd.DataFrame:

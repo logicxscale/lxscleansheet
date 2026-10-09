@@ -1,4 +1,5 @@
 ﻿import pandas as pd
+from rules.duplicate import detect_duplicates
 
 def calculate_confidence_score(df: pd.DataFrame) -> int:
     if df is None or len(df) == 0:
@@ -8,7 +9,7 @@ def calculate_confidence_score(df: pd.DataFrame) -> int:
         return 100
     
     missing_cells = df.isnull().sum().sum()
-    duplicates = df.duplicated().sum()
+    duplicates = detect_duplicates(df)
     
     missing_penalty = (missing_cells / total_cells) * 60
     duplicate_penalty = (duplicates / len(df)) * 40 if len(df) > 0 else 0

@@ -7,13 +7,14 @@ from core.validator import validate_dataframe
 from core.exporter import export_data
 from core.scoring import calculate_confidence_score
 from core.history import CleaningHistoryTracker
+from core.ai_assistant import LocalAIAssistant
 
-from rules.empty import fill_empty_cells, drop_empty_columns, get_empty_cells_rows
+from rules.empty import fill_empty_cells, drop_empty_columns, get_empty_cells_rows, detect_empty_columns
 from rules.duplicate import remove_duplicates, get_duplicate_rows
-from rules.formatting import trim_whitespace
-from rules.datatype import normalize_datatypes, normalize_dates, normalize_currency
+from rules.formatting import trim_whitespace, normalize_text_case
+from rules.datatype import normalize_datatypes, normalize_dates, normalize_currency, detect_date_columns, detect_currency_columns
 from rules.typo import fix_typo, get_typo_rows
-from rules.anomaly import cap_anomalies, get_anomaly_rows
+from rules.anomaly import cap_anomalies, get_anomaly_rows, detect_anomalies
 from rules.template import check_schema_template
 
 st.set_page_config(page_title="LXSCleanSheet", layout="wide", page_icon="📊")
@@ -106,7 +107,7 @@ st.markdown("""
     <div class="divider"></div>
     <div class="header-bottom">
         <div class="tagline">Clean Data. Clear Insights.</div>
-        <div class="features">Detect &middot; Analyze &middot; Clean &middot; Validate &middot; Compare</div>
+        <div class="features">Detect &middot; Analyze &middot; Clean &middot; Validate &middot; AI Assistant (Local)</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -118,6 +119,8 @@ if 'original_df' not in st.session_state:
     st.session_state.original_df = None
 if 'history_tracker' not in st.session_state:
     st.session_state.history_tracker = CleaningHistoryTracker()
+if 'ai_assistant' not in st.session_state:
+    st.session_state.ai_assistant = LocalAIAssistant()
 
 # Sidebar file uploader & navigation
 with st.sidebar:
@@ -142,7 +145,7 @@ with st.sidebar:
             st.rerun()
             
     st.markdown("---")
-    st.subheader("🧭 Navigation Menu (Phase 1-3)")
+    st.subheader("🧭 Navigation Menu (Phase 1-4)")
     menu = st.radio(
         "Choose phase:",
         [
@@ -152,9 +155,10 @@ with st.sidebar:
             "4. Normalization (Date/Currency)",
             "5. Typo & Fuzzy Matching",
             "6. Anomaly Detection",
-            "7. Before/After Comparison",
-            "8. Cleaning History & Audit Log",
-            "9. Validation & Export"
+            "7. 🤖 Local AI Assistant & Plan",
+            "8. Before/After Comparison",
+            "9. Cleaning History & Audit Log",
+            "10. Validation & Export"
         ]
     )
 
@@ -169,7 +173,6 @@ else:
     if menu == "1. Preview, Score & Schema":
         st.subheader("📊 Dataset Preview, Confidence Score & Schema")
         
-        # Confidence Score Metric
         col_m1, col_m2, col_m3 = st.columns(3)
         col_m1.metric("Data Quality Score", f"{score} / 100", delta=f"{score - calculate_confidence_score(original_df)} vs Original")
         col_m2.metric("Total Rows", df.shape[0])
@@ -196,8 +199,8 @@ else:
         st.write(f"**Empty Cells Detected:** {analysis['empty_cells']}")
         
         if analysis['empty_cells'] > 0:
-            st.write("Rows with Empty Cells:")
-            st.dataframe(get_empty_cells_rows(df))
+            if st.expander("Review Rows with Empty Cells"):
+                st.dataframe(get_empty_cells_rows(df))
             
             approve_fill = st.checkbox("Approve filling missing cells (0 for numeric, 'Unknown' for text)")
             if st.button("Apply Fill Missing Cells"):
@@ -222,13 +225,15 @@ else:
                     st.warning("Please check the approval box before applying.")
 
     elif menu == "3. Duplicates & Formatting":
-        st.subheader("👯 Duplicates & Whitespace Formatting")
-        st.write(f"**Duplicate Rows:** {analysis['duplicates']}")
+        st.subheader("👯 Duplicates & Formatting")
+        
+        st.write("### 1. Duplicate Rows")
+        st.write(f"**Duplicate Rows Detected:** {analysis['duplicates']}")
         if analysis['duplicates'] > 0:
-            st.write("Duplicate Rows:")
-            st.dataframe(get_duplicate_rows(df))
+            if st.expander("Review Duplicate Rows"):
+                st.dataframe(get_duplicate_rows(df))
             
-            approve_dup = st.checkbox("Approve removing duplicate rows")
+            approve_dup = st.checkbox("Approve removing duplicate rows", key="approve_dup")
             if st.button("Apply Remove Duplicates"):
                 if approve_dup:
                     st.session_state.df = remove_duplicates(df)
@@ -237,15 +242,31 @@ else:
                     st.rerun()
                 else:
                     st.warning("Please check the approval box before applying.")
+        else:
+            st.info("No duplicate rows found.")
                 
         st.markdown("---")
-        st.write("**Whitespace Cleaning**")
-        approve_ws = st.checkbox("Approve trimming leading/trailing whitespaces")
+        st.write("### 2. Whitespace Cleaning (Trim Whitespace)")
+        st.write("Trims leading and trailing whitespace from all text columns.")
+        approve_ws = st.checkbox("Approve trimming leading/trailing whitespaces", key="approve_ws")
         if st.button("Apply Trim Whitespaces"):
             if approve_ws:
                 st.session_state.df = trim_whitespace(df)
-                st.session_state.history_tracker.log("Formatting", "Trimmed whitespace from string columns")
-                st.success("Whitespaces trimmed!")
+                st.session_state.history_tracker.log("Whitespace Cleaning", "Trimmed whitespace from string columns")
+                st.success("Whitespaces trimmed successfully!")
+                st.rerun()
+            else:
+                st.warning("Please check the approval box before applying.")
+
+        st.markdown("---")
+        st.write("### 3. Text Case Normalization (Proper Casing: e.g. LOREM -> Lorem)")
+        st.write("Converts all-uppercase text (like LOREM, JAKARTA PUSAT) to Title Case (Lorem, Jakarta Pusat).")
+        approve_case = st.checkbox("Approve text case normalization", key="approve_case")
+        if st.button("Apply Text Case Normalization"):
+            if approve_case:
+                st.session_state.df = normalize_text_case(df)
+                st.session_state.history_tracker.log("Text Case Normalization", "Converted uppercase text to Title Case")
+                st.success("Text case normalized successfully!")
                 st.rerun()
             else:
                 st.warning("Please check the approval box before applying.")
@@ -283,20 +304,22 @@ else:
         typos = analysis["typos"]
         if typos:
             for col, pairs in typos.items():
-                st.write(f"Column: **{col}**")
+                st.markdown(f"### Column: `{col}`")
                 for idx, (p1, p2) in enumerate(pairs):
-                    col1, col2, col3 = st.columns([2, 2, 1])
-                    col1.write(f"'{p1}'")
-                    col2.write(f"'{p2}'")
-                    if col3.button(f"Merge to '{p1}'", key=f"{col}_{p1}_{p2}_{idx}"):
-                        st.session_state.df = fix_typo(df, col, p2, p1)
-                        st.session_state.history_tracker.log("Typo Fix", f"Merged '{p2}' to '{p1}' in {col}")
-                        st.success(f"Replaced '{p2}' with '{p1}'")
-                        st.rerun()
-                    st.write(f"Rows with '{p2}' in {col}:")
-                    st.dataframe(get_typo_rows(df, col, p2))
+                    with st.container():
+                        c1, c2 = st.columns([4, 1])
+                        c1.write(f"Suggested fix: Replace **'{p2}'** with **'{p1}'**")
+                        if c2.button("Merge", key=f"merge_{col}_{idx}"):
+                            st.session_state.df = fix_typo(df, col, p2, p1)
+                            st.session_state.history_tracker.log("Typo Fix", f"Merged '{p2}' to '{p1}' in {col}")
+                            st.success(f"Successfully replaced '{p2}' with '{p1}'!")
+                            st.rerun()
+                        
+                        st.write(f"Rows matching **'{p2}'**:")
+                        st.dataframe(get_typo_rows(df, col, p2), use_container_width=True)
+                st.markdown("---")
         else:
-            st.write("No major typos or close matches found.")
+            st.info("No major typos or close matches found.")
 
     elif menu == "6. Anomaly Detection":
         st.subheader("⚡ Anomaly & Outlier Detection (IQR Method)")
@@ -304,8 +327,8 @@ else:
         if anomalies:
             for col, info in anomalies.items():
                 st.write(f"Column: **{col}** — Outliers found: {info['count']} (Range: {info['lower_bound']:.2f} to {info['upper_bound']:.2f})")
-                st.write(f"Outliers in {col}:")
-                st.dataframe(get_anomaly_rows(df, col, info['lower_bound'], info['upper_bound']))
+                if st.expander(f"Review Outliers in {col}"):
+                    st.dataframe(get_anomaly_rows(df, col, info['lower_bound'], info['upper_bound']))
                 if st.button(f"Cap Outliers in {col}", key=f"cap_{col}"):
                     st.session_state.df = cap_anomalies(df, col, info['lower_bound'], info['upper_bound'])
                     st.session_state.history_tracker.log("Anomaly Capping", f"Capped outliers in {col}")
@@ -314,21 +337,96 @@ else:
         else:
             st.write("No numeric outliers detected.")
 
-    elif menu == "7. Before/After Comparison":
+    elif menu == "7. 🤖 Local AI Assistant & Plan":
+        st.subheader("🤖 Local AI Cleaning Assistant")
+        st.write("The local AI assistant analyzes your dataset and generates an automatic cleaning plan or executes natural language instructions instantly.")
+        
+        st.markdown("### 📋 Automatic Cleaning Plan")
+        plan = st.session_state.ai_assistant.generate_plan(df)
+        if plan:
+            for i, p in enumerate(plan, 1):
+                st.write(f"**{i}. {p['step']}**: {p['description']}")
+            
+            if st.button("🚀 Execute Automatic Cleaning Plan"):
+                # Execute full plan locally
+                res_df = df.copy()
+                res_df = fill_empty_cells(res_df)
+                empty_cols = drop_empty_columns(res_df, analysis['empty_columns']) if analysis['empty_columns'] else res_df
+                res_df = remove_duplicates(empty_cols)
+                res_df = trim_whitespace(res_df)
+                if analysis["date_cols"]:
+                    res_df = normalize_dates(res_df, analysis["date_cols"])
+                if analysis["currency_cols"]:
+                    res_df = normalize_currency(res_df, analysis["currency_cols"])
+                if analysis["anomalies"]:
+                    for col, info in analysis["anomalies"].items():
+                        res_df = cap_anomalies(res_df, col, info['lower_bound'], info['upper_bound'])
+                
+                st.session_state.df = res_df
+                st.session_state.history_tracker.log("AI Auto Plan", "Executed automatic cleaning plan")
+                st.success("Automatic cleaning plan executed successfully!")
+                st.rerun()
+        else:
+            st.success("Dataset is already very clean! No automatic actions needed.")
+
+        st.markdown("---")
+        st.markdown("### 💬 Natural Language Instruction")
+        st.write("Type what you want to clean in plain English or Indonesian (e.g., *'hapus duplikat'*, *'isi cell kosong'*, *'bersihkan semua'*):")
+        user_instruction = st.text_input("Instruction:", placeholder="e.g., hapus duplikat")
+        if st.button("Run Instruction"):
+            if user_instruction:
+                new_df, message = st.session_state.ai_assistant.execute_instruction(df, user_instruction)
+                st.session_state.df = new_df
+                st.session_state.history_tracker.log("AI Natural Language", f"Instruction: '{user_instruction}' -> {message}")
+                st.success(message)
+                st.rerun()
+            else:
+                st.warning("Please enter an instruction.")
+
+    elif menu == "8. Before/After Comparison":
         st.subheader("⚖️ Before vs After Cleaning Comparison")
+        
+        cleaned_comp_df = original_df.copy()
+        cleaned_comp_df = fill_empty_cells(cleaned_comp_df)
+        e_cols = detect_empty_columns(cleaned_comp_df)
+        if e_cols:
+            cleaned_comp_df = drop_empty_columns(cleaned_comp_df, e_cols)
+        cleaned_comp_df = remove_duplicates(cleaned_comp_df)
+        cleaned_comp_df = trim_whitespace(cleaned_comp_df)
+        d_cols = detect_date_columns(cleaned_comp_df)
+        if d_cols:
+            cleaned_comp_df = normalize_dates(cleaned_comp_df, d_cols)
+        c_cols = detect_currency_columns(cleaned_comp_df)
+        if c_cols:
+            cleaned_comp_df = normalize_currency(cleaned_comp_df, c_cols)
+        anoms = detect_anomalies(cleaned_comp_df)
+        if anoms:
+            for col, info in anoms.items():
+                cleaned_comp_df = cap_anomalies(cleaned_comp_df, col, info['lower_bound'], info['upper_bound'])
+
+        orig_score = calculate_confidence_score(original_df)
+        clean_score = calculate_confidence_score(cleaned_comp_df)
+
         col_b, col_a = st.columns(2)
         with col_b:
             st.markdown("### 🔴 Original Dataset")
             st.write(f"Shape: {original_df.shape}")
-            st.metric("Original Confidence Score", f"{calculate_confidence_score(original_df)} / 100")
+            st.metric("Original Confidence Score", f"{orig_score} / 100")
             st.dataframe(original_df.head(10), use_container_width=True)
         with col_a:
-            st.markdown("### 🟢 Current Cleaned Dataset")
-            st.write(f"Shape: {df.shape}")
-            st.metric("Current Confidence Score", f"{score} / 100")
-            st.dataframe(df.head(10), use_container_width=True)
+            st.markdown("### 🟢 Cleaned Dataset (Comparison View)")
+            st.write(f"Shape: {cleaned_comp_df.shape}")
+            st.metric("Cleaned Confidence Score", f"{clean_score} / 100", delta=f"+{clean_score - orig_score} vs Original")
+            st.dataframe(cleaned_comp_df.head(10), use_container_width=True)
 
-    elif menu == "8. Cleaning History & Audit Log":
+        st.markdown("---")
+        if st.button("🚀 Apply Cleaned Comparison as Current Dataset"):
+            st.session_state.df = cleaned_comp_df.copy()
+            st.session_state.history_tracker.log("Before/After Apply", "Applied fully cleaned dataset from comparison view")
+            st.success("Cleaned dataset successfully applied as current working dataset!")
+            st.rerun()
+
+    elif menu == "9. Cleaning History & Audit Log":
         st.subheader("📜 Cleaning History & Audit Log")
         logs = st.session_state.history_tracker.get_logs()
         if logs:
@@ -337,7 +435,7 @@ else:
         else:
             st.info("No cleaning actions recorded yet.")
 
-    elif menu == "9. Validation & Export":
+    elif menu == "10. Validation & Export":
         st.subheader("✅ Final Validation & Export")
         validation = validate_dataframe(df)
         st.json(validation)
