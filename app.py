@@ -199,8 +199,8 @@ else:
         st.write(f"**Empty Cells Detected:** {analysis['empty_cells']}")
         
         if analysis['empty_cells'] > 0:
-            if st.expander("Review Rows with Empty Cells"):
-                st.dataframe(get_empty_cells_rows(df))
+            st.write("Rows with Empty Cells:")
+            st.dataframe(get_empty_cells_rows(df), use_container_width=True)
             
             approve_fill = st.checkbox("Approve filling missing cells (0 for numeric, 'Unknown' for text)")
             if st.button("Apply Fill Missing Cells"):
@@ -230,8 +230,8 @@ else:
         st.write("### 1. Duplicate Rows")
         st.write(f"**Duplicate Rows Detected:** {analysis['duplicates']}")
         if analysis['duplicates'] > 0:
-            if st.expander("Review Duplicate Rows"):
-                st.dataframe(get_duplicate_rows(df))
+            st.write("Duplicate Rows:")
+            st.dataframe(get_duplicate_rows(df), use_container_width=True)
             
             approve_dup = st.checkbox("Approve removing duplicate rows", key="approve_dup")
             if st.button("Apply Remove Duplicates"):
@@ -327,8 +327,8 @@ else:
         if anomalies:
             for col, info in anomalies.items():
                 st.write(f"Column: **{col}** — Outliers found: {info['count']} (Range: {info['lower_bound']:.2f} to {info['upper_bound']:.2f})")
-                if st.expander(f"Review Outliers in {col}"):
-                    st.dataframe(get_anomaly_rows(df, col, info['lower_bound'], info['upper_bound']))
+                st.write(f"Outliers in {col}:")
+                st.dataframe(get_anomaly_rows(df, col, info['lower_bound'], info['upper_bound']), use_container_width=True)
                 if st.button(f"Cap Outliers in {col}", key=f"cap_{col}"):
                     st.session_state.df = cap_anomalies(df, col, info['lower_bound'], info['upper_bound'])
                     st.session_state.history_tracker.log("Anomaly Capping", f"Capped outliers in {col}")
