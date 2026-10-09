@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-from core.reader import read_data
+from core.reader import read_data, get_excel_sheets
 from core.analyzer import analyze_dataset
 from core.validator import validate_dataframe
 from core.exporter import export_data
@@ -128,15 +128,38 @@ with st.sidebar:
     uploaded_file = st.file_uploader("Upload Excel File", type=["xlsx", "xls"])
     
     if uploaded_file is not None:
-        if st.session_state.original_df is None:
+        current_file_name = uploaded_file.name
+        if 'uploaded_file_name' not in st.session_state or st.session_state.uploaded_file_name != current_file_name:
+            st.session_state.uploaded_file_name = current_file_name
             try:
-                df = read_data(uploaded_file)
+                sheets = get_excel_sheets(uploaded_file)
+                st.session_state.sheets = sheets
+                st.session_state.selected_sheet = sheets[0] if sheets else 0
+                df = read_data(uploaded_file, sheet_name=st.session_state.selected_sheet)
                 st.session_state.original_df = df.copy()
                 st.session_state.df = df.copy()
-                st.session_state.history_tracker.log("Upload", f"Loaded file with shape {df.shape}")
+                st.session_state.history_tracker = CleaningHistoryTracker()
+                st.session_state.history_tracker.log("Upload", f"Loaded file '{current_file_name}' (sheet: {st.session_state.selected_sheet}) with shape {df.shape}")
                 st.success("Loaded successfully!")
             except Exception as e:
                 st.error(f"Error: {e}")
+        
+        if 'sheets' in st.session_state and len(st.session_state.sheets) > 0:
+            current_index = 0
+            if st.session_state.selected_sheet in st.session_state.sheets:
+                current_index = st.session_state.sheets.index(st.session_state.selected_sheet)
+            selected_sheet = st.selectbox("Select Excel Sheet / Workspace", st.session_state.sheets, index=current_index)
+            if selected_sheet != st.session_state.selected_sheet:
+                st.session_state.selected_sheet = selected_sheet
+                try:
+                    df = read_data(uploaded_file, sheet_name=selected_sheet)
+                    st.session_state.original_df = df.copy()
+                    st.session_state.df = df.copy()
+                    st.session_state.history_tracker.log("Sheet Change", f"Switched to sheet '{selected_sheet}' with shape {df.shape}")
+                    st.success(f"Switched to sheet '{selected_sheet}'!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error loading sheet: {e}")
                 
     if st.session_state.df is not None:
         if st.button("Reset to Original"):
