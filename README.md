@@ -1,4 +1,4 @@
-﻿# 📊 LXSCleanSheet
+# 📊 LXSCleanSheet
 
 <p align="center">
   <b>Excel Data Cleaning & Quality Assistant built with Streamlit</b><br>
