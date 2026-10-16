@@ -13,7 +13,7 @@ from rules.empty import fill_empty_cells, drop_empty_columns, get_empty_cells_ro
 from rules.duplicate import remove_duplicates, get_duplicate_rows
 from rules.formatting import trim_whitespace, normalize_text_case
 from rules.datatype import normalize_datatypes, normalize_dates, normalize_currency, detect_date_columns, detect_currency_columns
-from rules.typo import fix_typo, get_typo_rows
+from rules.typo import fix_typo, get_typo_rows, detect_typos_fuzzy
 from rules.anomaly import cap_anomalies, get_anomaly_rows, detect_anomalies
 from rules.template import check_schema_template
 
@@ -324,7 +324,15 @@ else:
 
     elif menu == "5. Typo & Fuzzy Matching":
         st.subheader("🔍 Typo Detection & Fuzzy Matching")
-        typos = analysis["typos"]
+        typo_threshold = st.slider(
+            "Fuzzy Matching Similarity Threshold", 
+            min_value=0.80, 
+            max_value=0.98, 
+            value=0.92, 
+            step=0.01, 
+            help="Higher threshold means stricter matching (fewer false positives). Lower threshold catches more potential typos."
+        )
+        typos = detect_typos_fuzzy(df, threshold=typo_threshold)
         if typos:
             for col, pairs in typos.items():
                 st.markdown(f"### Column: `{col}`")
@@ -342,7 +350,7 @@ else:
                         st.dataframe(get_typo_rows(df, col, p2), use_container_width=True)
                 st.markdown("---")
         else:
-            st.info("No major typos or close matches found.")
+            st.info("No major typos or close matches found with the current threshold.")
 
     elif menu == "6. Anomaly Detection":
         st.subheader("⚡ Anomaly & Outlier Detection (IQR Method)")

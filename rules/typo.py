@@ -51,13 +51,13 @@ def is_distinct_category_variant(v1: str, v2: str) -> bool:
                 
     return False
 
-def detect_typos_fuzzy(df: pd.DataFrame, threshold=0.88):
+def detect_typos_fuzzy(df: pd.DataFrame, threshold=0.92):
     typo_suggestions = {}
     exclude_keywords = [
         'id', 'code', 'telp', 'phone', 'postal', 'zip', 'tahun', 'year', 'nik', 'npwp', 
         'number', 'no', 'date', 'email', 'url', 'password', 'token', 'uuid', 'guid', 
         'nomor', 'kode', 'alamat', 'address', 'deskripsi', 'description', 'keterangan', 
-        'notes', 'catatan', 'nama', 'name'
+        'notes', 'catatan', 'nama', 'name', 'tanggal', 'waktu', 'time', 'status', 'gender', 'jenis'
     ]
     
     for col in df.select_dtypes(include=['object', 'string']):
@@ -68,16 +68,11 @@ def detect_typos_fuzzy(df: pd.DataFrame, threshold=0.88):
             continue
             
         try:
-            # If the column has high cardinality (almost all unique values), 
-            # it's likely names or generic identifiers that shouldn't be merge candidates,
-            # especially if length of dataframe is large.
-            # Using > 0.6 cardinality for text columns indicates highly unique textual data (e.g., descriptions/addresses)
-            if len(df) > 5 and df[col].nunique() / len(df) > 0.6:
+            if len(df) > 5 and df[col].nunique() / len(df) > 0.4:
                 continue
             
-            # Additional heuristic: If average length of strings is very long, it's likely free-text like descriptions
             avg_len = df[col].dropna().astype(str).str.len().mean()
-            if avg_len > 30:
+            if avg_len > 20:
                 continue
         except Exception:
             pass
